@@ -1,0 +1,11 @@
+{
+  "name": "careerfit-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CareerFit AI — resume-to-job match analyzer",
+  "scripts": {
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "install:all": "npm install --prefix client && npm install --prefix server"
+  }
+}

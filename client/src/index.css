@@ -1,0 +1,323 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #0284c7;
+  --color-brand-light: #e0f2fe;
+  --color-brand-hover: #0369a1;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #ffffff;
+  color: #1e293b;
+}
+
+body[data-locale='my'] {
+  font-family: 'Noto Sans Myanmar', var(--font-sans);
+}
+
+/* ── App shell — bright & airy ── */
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(14, 165, 233, 0.07), transparent),
+    radial-gradient(ellipse 40% 30% at 100% 50%, rgba(45, 212, 191, 0.05), transparent),
+    #ffffff;
+}
+
+/* ── Auth side panel — light pastel, NOT dark ── */
+.auth-panel {
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 20%, rgba(186, 230, 253, 0.6), transparent),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(204, 251, 241, 0.5), transparent),
+    linear-gradient(160deg, #f0f9ff 0%, #ecfeff 50%, #f8fafc 100%);
+  border-right: 1px solid #e2e8f0;
+}
+
+/* ── Logo image (used in Logo.jsx & AuthLayout) ── */
+.card-surface {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.card-glow {
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.04),
+    0 8px 24px -6px rgba(14, 165, 233, 0.08);
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  background: #0284c7;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.btn-secondary {
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #475569;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-ghost {
+  color: #64748b;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.btn-logout:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ── Inputs ── */
+.input-field {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input-field::placeholder {
+  color: #94a3b8;
+}
+
+.input-field:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12);
+}
+
+.input-field:disabled {
+  background: #f8fafc;
+  opacity: 0.7;
+}
+
+.input-field-error {
+  border-color: #fda4af;
+}
+
+.input-field-error:focus {
+  border-color: #fb7185;
+  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.12);
+}
+
+/* ── Badge ── */
+.badge-gradient {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  padding: 0.375rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0369a1;
+}
+
+/* ── Nav ── */
+.nav-pill {
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.15s;
+}
+
+.nav-pill:hover {
+  color: #1e293b;
+  background: #f1f5f9;
+}
+
+.nav-pill-active {
+  background: #f0f9ff;
+  color: #0284c7;
+  font-weight: 600;
+}
+
+/* ── Header ── */
+.header-glass {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid #f1f5f9;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+}
+
+/* ── Animations ── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out both;
+}
+
+.animate-delay-1 { animation-delay: 0.08s; }
+.animate-delay-2 { animation-delay: 0.16s; }
+.animate-delay-3 { animation-delay: 0.24s; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  70% { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out both;
+}
+
+/* ── Analyze page ── */
+.analyze-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  border-top: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.06);
+}
+
+.analyze-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.analyze-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid #bae6fd;
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+/* ── Drop zone ── */
+.dropzone {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 2px dashed #cbd5e1;
+  background: #fafafa;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.dropzone:hover:not(.dropzone-disabled) {
+  border-color: #38bdf8;
+  background: #f0f9ff;
+}
+
+.dropzone-active {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  border-style: solid;
+}
+
+.dropzone-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Table ── */
+.table-row-hover {
+  transition: background 0.12s;
+}
+
+.table-row-hover:hover {
+  background: #f8fafc;
+}
+
+/* ── User avatar ── */
+.user-avatar {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #e0f2fe;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0369a1;
+}
+
+/* ── Feature item (auth panel) ── */
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.875rem 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.feature-icon {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: #e0f2fe;
+  font-size: 0.875rem;
+  color: #0284c7;
+}
+
+/* ── Stat accent borders ── */
+.stat-indigo { border-left: 3px solid #0284c7; }
+.stat-emerald { border-left: 3px solid #10b981; }
+.stat-amber { border-left: 3px solid #f59e0b; }
