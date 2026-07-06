@@ -210,6 +210,81 @@ body[data-locale='my'] {
   animation: scale-in 0.3s ease-out both;
 }
 
+.btn-danger {
+  border: 1px solid #e11d48;
+  background: #e11d48;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #be123c;
+  border-color: #be123c;
+}
+
+/* ── Dialog (shadcn-style alert) ── */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.dialog-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  appearance: none;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  cursor: default;
+}
+
+.dialog-overlay-backdrop:focus {
+  outline: none;
+}
+
+.dialog-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 28rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1.5rem;
+  box-shadow:
+    0 20px 25px -5px rgba(15, 23, 42, 0.1),
+    0 8px 10px -6px rgba(15, 23, 42, 0.08);
+}
+
+.dialog-footer {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.dialog-footer-btn {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .dialog-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .dialog-footer-btn {
+    width: auto;
+    min-width: 5.5rem;
+  }
+}
+
 /* ── Analyze page ── */
 .analyze-action-bar {
   position: fixed;

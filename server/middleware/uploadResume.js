@@ -57,4 +57,8 @@ function uploadResume(req, res, next) {
   });
 }
 
-module.exports = { uploadResume, UPLOAD_FIELD };
+function uploadResumeOptional(req, res, next) {
+  uploadResume(req, res, next);
+}
+
+module.exports = { uploadResume, uploadResumeOptional, UPLOAD_FIELD };

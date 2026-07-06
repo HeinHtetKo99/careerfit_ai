@@ -9,6 +9,9 @@ AI-powered resume-to-job matcher. Upload a CV, paste a job description, and get 
 - **Match score** — 0–100 score with matched and missing skills
 - **AI feedback** — Improvement tips and career coaching via Google Gemini
 - **Match history** — Dashboard to browse and revisit past analyses
+- **Saved resume** — Upload once; reuse your CV for multiple job analyses
+- **CV snapshot** — Experience, education, summary, and key skills on each result
+- **Improvement roadmap** — 3-phase AI plan: quick wins, skill gaps, and CV polish
 - **Bilingual UI** — English and Myanmar for labels, feedback, and coaching text
 - **User accounts** — Register, log in, and keep your analysis history (JWT auth)
 
@@ -68,6 +71,11 @@ Create a PostgreSQL database, then run the schema and migrations:
 ```bash
 psql "$DATABASE_URL" -f server/schema.sql
 psql "$DATABASE_URL" -f server/migrations/002_analyze_flow.sql
+psql "$DATABASE_URL" -f server/migrations/003_saved_resume.sql
+psql "$DATABASE_URL" -f server/migrations/004_resume_file_name.sql
+psql "$DATABASE_URL" -f server/migrations/005_improvement_roadmap.sql
+psql "$DATABASE_URL" -f server/migrations/006_match_language.sql
+psql "$DATABASE_URL" -f server/migrations/007_content_i18n.sql
 ```
 
 ### 3. Configure environment variables
@@ -121,14 +129,17 @@ All routes are prefixed with `/api`.
 | `GET` | `/health/gemini` | — | Gemini API availability |
 | `POST` | `/auth/register` | — | Create account (`name`, `email`, `password`) |
 | `POST` | `/auth/login` | — | Log in (`email`, `password`) |
-| `POST` | `/resumes/upload` | JWT | Upload a PDF resume |
+| `POST` | `/resumes/upload` | JWT | Upload or replace your saved PDF resume |
+| `GET` | `/resumes/primary` | JWT | Get your saved primary resume |
 | `POST` | `/analyze` | JWT | Analyze resume + job description (multipart) |
-| `GET` | `/matches/:userId` | — | List matches for a user |
+| `GET` | `/matches/:userId` | JWT | List matches for the authenticated user |
+| `DELETE` | `/matches/:userId` | JWT | Delete all analysis history for the authenticated user |
 | `GET` | `/matches/detail/:matchId` | JWT | Get a single match result |
 
 **Analyze** expects `multipart/form-data`:
 
-- `resume` — PDF file (max 10 MB)
+- `resume` — PDF file (max 10 MB); optional if `use_saved_resume=true`
+- `use_saved_resume` — set to `true` to analyze your saved primary resume without re-uploading
 - `job_description` — required, min 50 characters
 - `job_title` — optional
 - `language` — `en` or `my`

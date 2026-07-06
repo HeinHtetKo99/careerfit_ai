@@ -2,12 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { analyzeResume } from '../api/matches';
+import { getPrimaryResume } from '../api/resumes';
 import DropZone from '../components/DropZone';
 import { Alert, Button, Card, PageHeader, Spinner, StepBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
 const MIN_JOB_DESC = 50;
+
+function savedResumeName(resume) {
+  if (resume?.file_name?.trim()) return resume.file_name.trim();
+  return 'resume.pdf';
+}
 
 function getAnalyzeErrorMessage(err, t) {
   if (!(err instanceof ApiError)) {
@@ -98,15 +104,39 @@ export default function Analyze() {
   );
 
   const [file, setFile] = useState(null);
+  const [savedResume, setSavedResume] = useState(null);
+  const [loadingResume, setLoadingResume] = useState(true);
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState('');
 
-  const step1Done = Boolean(file);
+  const step1Done = Boolean(file || savedResume);
   const step2Done = jobDescription.trim().length >= MIN_JOB_DESC;
-  const canAnalyze = step1Done && step2Done && !analyzing;
+  const canAnalyze = step1Done && step2Done && !analyzing && !loadingResume;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSavedResume() {
+      try {
+        const data = await getPrimaryResume(token);
+        if (!cancelled && data.resume) {
+          setSavedResume(data.resume);
+        }
+      } catch {
+        // Saved resume is optional; analyze still works with a new upload.
+      } finally {
+        if (!cancelled) setLoadingResume(false);
+      }
+    }
+
+    loadSavedResume();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!analyzing) {
@@ -153,8 +183,16 @@ export default function Analyze() {
     setFile(selected);
   }
 
+  function handleRemoveFile() {
+    setFile(null);
+  }
+
+  function handleRemoveSavedResume() {
+    setSavedResume(null);
+  }
+
   async function handleAnalyze() {
-    if (!file) {
+    if (!file && !savedResume) {
       setError(t('analyze.errorNoFile'));
       return;
     }
@@ -173,7 +211,12 @@ export default function Analyze() {
         jobTitle,
         jobDescription: jobDescription.trim(),
         language: locale,
+        useSavedResume: !file && Boolean(savedResume),
       });
+
+      if (!file && data.resume_id) {
+        setSavedResume(data.match?.resume_profile ?? savedResume);
+      }
 
       navigate(`/result/${data.match.id}`, {
         state: { match: data.match },
@@ -240,12 +283,38 @@ export default function Analyze() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setFile(null)}
+                  onClick={handleRemoveFile}
                   disabled={analyzing}
                 >
                   {t('common.remove')}
                 </Button>
               </div>
+            )}
+
+            {!file && savedResume && (
+              <div className="mt-4 flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-extrabold text-sky-700 shadow-sm ring-1 ring-sky-100">
+                  CV
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {savedResumeName(savedResume)}
+                  </p>
+                  <p className="text-xs text-slate-500">{t('analyze.savedResumeHint')}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveSavedResume}
+                  disabled={analyzing}
+                >
+                  {t('analyze.replaceResume')}
+                </Button>
+              </div>
+            )}
+
+            {loadingResume && !file && !savedResume && (
+              <p className="mt-4 text-center text-sm text-slate-400">{t('common.loading')}</p>
             )}
           </Card>
 
@@ -361,7 +430,7 @@ export default function Analyze() {
 
       {analyzing && (
         <AnalyzeOverlay
-          file={file}
+          file={file ?? (savedResume ? { name: savedResumeName(savedResume) } : null)}
           jobTitle={jobTitle}
           loadingStep={loadingStep}
           loadingSteps={loadingSteps}

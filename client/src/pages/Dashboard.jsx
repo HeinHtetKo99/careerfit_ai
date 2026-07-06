@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { listMatches } from '../api/matches';
+import { deleteAllMatches, listMatches } from '../api/matches';
+import AlertDialog from '../components/AlertDialog';
 import { Alert, Button, Card, Spinner, StatCard } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -27,20 +28,22 @@ function truncate(text, max = 80) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { locale, t } = useLanguage();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sortField, setSortField] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
+  const [clearing, setClearing] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const data = await listMatches(user.id);
+        const data = await listMatches(user.id, token);
         if (!cancelled) setMatches(data.matches ?? []);
       } catch (err) {
         if (!cancelled) {
@@ -55,7 +58,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user.id, t]);
+  }, [user.id, token, t]);
 
   const stats = useMemo(() => {
     if (!matches.length) return { total: 0, avg: 0, best: 0 };
@@ -87,6 +90,23 @@ export default function Dashboard() {
     setSortDir((prev) => (sortField === 'score' ? (prev === 'desc' ? 'asc' : 'desc') : 'desc'));
   }
 
+  async function handleConfirmClear() {
+    if (!matches.length || clearing) return;
+
+    setClearing(true);
+    setError('');
+
+    try {
+      await deleteAllMatches(user.id, token);
+      setMatches([]);
+      setClearDialogOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('dashboard.clearError'));
+    } finally {
+      setClearing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-24">
@@ -103,14 +123,27 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t('dashboard.title')}</h1>
           <p className="mt-2 text-slate-600">{t('dashboard.welcome', { name: user.name })}</p>
         </div>
-        <Link to="/analyze">
-          <Button variant="primary" size="md">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            {t('dashboard.newAnalysis')}
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {matches.length > 0 && (
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => setClearDialogOpen(true)}
+              disabled={clearing}
+              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+            >
+              {t('dashboard.clearAll')}
+            </Button>
+          )}
+          <Link to="/analyze">
+            <Button variant="primary" size="md">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              {t('dashboard.newAnalysis')}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {matches.length > 0 && (
@@ -229,6 +262,20 @@ export default function Dashboard() {
           </table>
         </div>
       </Card>
+
+      <AlertDialog
+        open={clearDialogOpen}
+        onOpenChange={(open) => {
+          if (!clearing) setClearDialogOpen(open);
+        }}
+        title={t('dashboard.clearTitle')}
+        description={t('dashboard.clearConfirm')}
+        confirmLabel={clearing ? t('dashboard.clearing') : t('dashboard.clearConfirmAction')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={handleConfirmClear}
+        loading={clearing}
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -17,8 +17,7 @@ module.exports = {
   geminiApiKey: process.env.GEMINI_API_KEY,
   geminiModels: parseModelList(
     process.env.GEMINI_MODEL,
-    'gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-flash'
+    'gemini-2.5-flash'
   ),
-  geminiFallbackEnabled: process.env.GEMINI_FALLBACK === 'true',
   uploadsDir: path.join(__dirname, '..', 'uploads'),
 };

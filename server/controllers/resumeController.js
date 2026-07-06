@@ -1,6 +1,7 @@
 const pool = require('../db');
 const { UPLOAD_FIELD } = require('../middleware/uploadResume');
 const { parseResumeText } = require('../services/geminiService');
+const { formatResumeProfile, upsertPrimaryResume } = require('../services/resumeService');
 const { extractPdfText, removeFile } = require('../utils/pdf');
 
 function createHttpError(statusCode, message) {
@@ -45,14 +46,6 @@ const uploadResume = async (req, res, next) => {
 
     const fileUrl = `/uploads/${req.file.filename}`;
 
-    const result = await pool.query(
-      `INSERT INTO resumes (user_id, file_url, raw_text)
-       VALUES ($1, $2, $3)
-       RETURNING id`,
-      [req.user.id, fileUrl, rawText]
-    );
-
-    const resumeId = result.rows[0].id;
     const parsed = await parseResumeText(rawText);
 
     const parsedSkills = Array.isArray(parsed.skills)
@@ -65,20 +58,22 @@ const uploadResume = async (req, res, next) => {
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
     };
 
-    await pool.query(
-      `UPDATE resumes
-       SET parsed_skills = $1::jsonb, parsed_experience = $2::jsonb
-       WHERE id = $3`,
-      [JSON.stringify(parsedSkills), JSON.stringify(parsedExperience), resumeId]
+    const resumeRow = await upsertPrimaryResume(
+      req.user.id,
+      fileUrl,
+      rawText,
+      parsedSkills,
+      parsedExperience,
+      req.file.originalname
     );
 
     res.status(201).json({
       success: true,
-      id: resumeId,
+      resume: formatResumeProfile(resumeRow),
+      id: resumeRow.id,
       raw_text: rawText,
       parsed_skills: parsedSkills,
       parsed_experience: parsedExperience,
-      used_fallback: parsed.used_fallback ?? false,
     });
   } catch (err) {
     await removeFile(filePath);
@@ -86,4 +81,29 @@ const uploadResume = async (req, res, next) => {
   }
 };
 
-module.exports = { uploadResume };
+const getPrimary = async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, file_url, file_name, parsed_skills, parsed_experience, created_at
+       FROM resumes
+       WHERE user_id = $1 AND is_primary = true
+       LIMIT 1`,
+      [req.user.id]
+    );
+
+    const resume = result.rows[0];
+
+    if (!resume) {
+      return res.status(200).json({ success: true, resume: null });
+    }
+
+    res.status(200).json({
+      success: true,
+      resume: formatResumeProfile(resume),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { uploadResume, getPrimary };

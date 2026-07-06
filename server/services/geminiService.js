@@ -1,5 +1,12 @@
 const config = require('../config');
-const localParser = require('./localParser');
+const { normalizeRoadmap } = require('../utils/roadmap');
+const {
+  emptyContentBlock,
+  normalizeContentBlock,
+  normalizeContentI18n,
+} = require('../utils/contentI18n');
+const { sanitizeEducation } = require('../utils/education');
+const { sanitizeSummary, resolveSummaryText } = require('../utils/summary');
 
 const RESUME_SYSTEM_INSTRUCTION =
   'You are a resume parser. Return ONLY valid JSON with no markdown formatting, no code fences, and no extra text.';
@@ -13,15 +20,57 @@ const MATCH_SYSTEM_INSTRUCTION =
 const ANALYZE_SYSTEM_INSTRUCTION =
   'You are an expert career coach. Return ONLY valid JSON matching the required schema. Keep arrays concise.';
 
+const ANALYZE_RESUME_MAX_CHARS = 2000;
+const ANALYZE_JOB_MAX_CHARS = 1500;
+const ANALYZE_MAX_OUTPUT_TOKENS = 2400;
+const TRANSLATE_MAX_OUTPUT_TOKENS = 1600;
+
 function getAnalyzeSystemInstruction(language = 'en') {
   if (language === 'my') {
-    return `${ANALYZE_SYSTEM_INSTRUCTION} CRITICAL: Write summary, improvements, and feedback entirely in natural Burmese (Myanmar script). Use clear, conversational Myanmar — not literal English transliteration. Keep standard technical skill names in English (e.g. React, Python).`;
+    return `${ANALYZE_SYSTEM_INSTRUCTION} CRITICAL: Write education, summary, improvements, feedback, and roadmap entirely in natural Burmese (Myanmar Unicode). Use conversational Myanmar — not English sentences or romanized Burmese. Keep technical skill names in English (React, Python).`;
   }
 
-  return `${ANALYZE_SYSTEM_INSTRUCTION} CRITICAL: Write summary, improvements, and feedback entirely in English.`;
+  return `${ANALYZE_SYSTEM_INSTRUCTION} CRITICAL: Write education, summary, improvements, feedback, and roadmap entirely in English.`;
 }
 
-const ANALYZE_RESPONSE_SCHEMA = {
+function getAnalyzeLanguageBlock(language = 'en') {
+  if (language === 'my') {
+    return `OUTPUT (MYANMAR): education (degree + major only), summary (one complete sentence in Myanmar — not English), improvements (3), feedback (max 2 sentences), roadmap (goal + 3 phases, 2 tasks each). Durations: "ဒီအပတ်", "၂–၄ ပတ်", "ပြီးပါက ထပ်မံစစ်ဆေးပါ".`;
+  }
+
+  return `OUTPUT (ENGLISH): education (degree + field only — no dates), summary (one complete sentence, 25-40 words, must end cleanly — no trailing "and" or commas), improvements (3), feedback (max 2 sentences), roadmap (goal + 3 phases, 2 tasks each). Durations: "This week", "2-4 weeks", "When ready".`;
+}
+
+const ROADMAP_PHASE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    title: { type: 'STRING' },
+    duration: { type: 'STRING' },
+    tasks: { type: 'ARRAY', items: { type: 'STRING' } },
+  },
+  required: ['title', 'duration', 'tasks'],
+};
+
+const CONTENT_BLOCK_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    education: { type: 'STRING' },
+    summary: { type: 'STRING' },
+    improvements: { type: 'ARRAY', items: { type: 'STRING' } },
+    feedback: { type: 'STRING' },
+    roadmap: {
+      type: 'OBJECT',
+      properties: {
+        goal: { type: 'STRING' },
+        phases: { type: 'ARRAY', items: ROADMAP_PHASE_SCHEMA },
+      },
+      required: ['goal', 'phases'],
+    },
+  },
+  required: ['education', 'summary', 'improvements', 'feedback', 'roadmap'],
+};
+
+const SINGLE_LANG_ANALYZE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     skills: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -33,6 +82,14 @@ const ANALYZE_RESPONSE_SCHEMA = {
     missing_skills: { type: 'ARRAY', items: { type: 'STRING' } },
     improvements: { type: 'ARRAY', items: { type: 'STRING' } },
     feedback: { type: 'STRING' },
+    roadmap: {
+      type: 'OBJECT',
+      properties: {
+        goal: { type: 'STRING' },
+        phases: { type: 'ARRAY', items: ROADMAP_PHASE_SCHEMA },
+      },
+      required: ['goal', 'phases'],
+    },
   },
   required: [
     'skills',
@@ -41,6 +98,7 @@ const ANALYZE_RESPONSE_SCHEMA = {
     'missing_skills',
     'improvements',
     'feedback',
+    'roadmap',
   ],
 };
 
@@ -81,22 +139,15 @@ function buildAnalyzePrompt(resumeText, jobTitle, jobDescription, strict = false
     ? '\n\nIMPORTANT: Your previous response was not valid JSON. Respond with raw JSON only — no markdown, no ``` fences, no explanation.'
     : '';
 
-  const languageNote =
-    language === 'my'
-      ? '\n\nOUTPUT LANGUAGE (MANDATORY): Burmese/Myanmar script only for summary, improvements, and feedback. Use natural spoken Myanmar. Do not transliterate English words like "resume" — use CV or ကိုယ်ရေးရာဇဝင် where appropriate.'
-      : '\n\nOUTPUT LANGUAGE (MANDATORY): English only for summary, improvements, and feedback.';
-
+  const languageNote = getAnalyzeLanguageBlock(language);
   const titleLine = jobTitle?.trim() ? `Job title: ${jobTitle.trim()}\n` : '';
-  const trimmedResume = resumeText.slice(0, 3000);
-  const trimmedJob = jobDescription.slice(0, 2500);
+  const trimmedResume = resumeText.slice(0, ANALYZE_RESUME_MAX_CHARS);
+  const trimmedJob = jobDescription.slice(0, ANALYZE_JOB_MAX_CHARS);
 
-  return `Compare this resume to the job. Return compact JSON only.
-
-Limits: skills max 10 items, matched_skills max 8, missing_skills max 8, improvements exactly 3 short strings, feedback max 2 sentences, summary max 20 words.
+  return `Compare resume to job. Compact JSON only. skills max 10, matched_skills max 8, missing_skills max 8. summary: one complete professional sentence.
 ${languageNote}
 
-${titleLine}
-Job description:
+${titleLine}Job description:
 ${trimmedJob}
 
 Resume:
@@ -130,7 +181,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function parseRetryDelayMs(errorBody) {
+function parseRetryDelayMs(errorBody, maxDelayMs = 12000) {
   try {
     const parsed = JSON.parse(errorBody);
     const retryInfo = parsed?.error?.details?.find(
@@ -138,12 +189,12 @@ function parseRetryDelayMs(errorBody) {
     );
     const seconds = Number.parseFloat(retryInfo?.retryDelay?.replace('s', ''));
     if (!Number.isNaN(seconds) && seconds > 0) {
-      return Math.min(Math.ceil(seconds * 1000) + 500, 60000);
+      return Math.min(Math.ceil(seconds * 1000) + 500, maxDelayMs);
     }
   } catch {
     // Ignore parse errors.
   }
-  return 5000;
+  return Math.min(5000, maxDelayMs);
 }
 
 function isQuotaError(status, errorBody = '') {
@@ -211,6 +262,35 @@ async function callGeminiOnce(model, userPrompt, systemInstruction, options = {}
   return text;
 }
 
+async function callGeminiOnceWithRetry(
+  model,
+  userPrompt,
+  systemInstruction,
+  options = {},
+  maxRetries = 1
+) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await callGeminiOnce(model, userPrompt, systemInstruction, options);
+    } catch (err) {
+      lastError = err;
+      if (err.isQuotaError && attempt < maxRetries) {
+        const delay = parseRetryDelayMs(err.errorBody || '');
+        console.warn(
+          `Gemini rate limit on ${model}, retrying in ${delay}ms (${attempt + 1}/${maxRetries})`
+        );
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error(`Gemini request failed on ${model}`);
+}
+
 async function callGemini(
   userPrompt,
   systemInstruction = RESUME_SYSTEM_INSTRUCTION,
@@ -224,7 +304,7 @@ async function callGemini(
 
   for (const model of config.geminiModels) {
     try {
-      return await callGeminiOnce(model, userPrompt, systemInstruction, options);
+      return await callGeminiOnceWithRetry(model, userPrompt, systemInstruction, options);
     } catch (err) {
       lastError = err;
       console.warn(`Gemini failed on ${model}: ${err.message.slice(0, 160)}`);
@@ -270,32 +350,23 @@ function createGeminiError(taskName, err) {
   return error;
 }
 
-async function withGeminiOrFallback(taskName, geminiFn, fallbackFn, ...args) {
+async function withGemini(taskName, geminiFn) {
   try {
-    const result = await geminiFn(...args);
-    return { ...result, used_fallback: false };
+    return await geminiFn();
   } catch (err) {
-    if (!config.geminiFallbackEnabled) {
-      console.error(`Gemini unavailable for ${taskName}:`, err.message);
-      throw createGeminiError(taskName, err);
-    }
-
-    console.warn(`Gemini unavailable for ${taskName}. Using local fallback.`, err.message);
-    const result = fallbackFn(...args);
-    return { ...result, used_fallback: true };
+    console.error(`Gemini unavailable for ${taskName}:`, err.message);
+    throw createGeminiError(taskName, err);
   }
 }
 
 async function parseResumeText(rawText) {
-  return withGeminiOrFallback(
-    'parse resume',
-    async (text) => {
+  return withGemini('parse resume', async () => {
       let lastError;
 
       for (const strict of [false, true]) {
         try {
           const responseText = await callGemini(
-            buildResumePrompt(text, strict),
+            buildResumePrompt(rawText, strict),
             RESUME_SYSTEM_INSTRUCTION
           );
           const parsed = parseGeminiJson(responseText);
@@ -311,8 +382,8 @@ async function parseResumeText(rawText) {
           return {
             skills: parsed.skills,
             years_experience: parsed.years_experience,
-            education: typeof parsed.education === 'string' ? parsed.education : '',
-            summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+            education: sanitizeEducation(parsed.education),
+            summary: sanitizeSummary(parsed.summary),
           };
         } catch (err) {
           lastError = err;
@@ -320,22 +391,17 @@ async function parseResumeText(rawText) {
       }
 
       throw lastError || new Error('invalid JSON response');
-    },
-    localParser.parseResumeText,
-    rawText
-  );
+  });
 }
 
 async function extractJobSkills(description) {
-  return withGeminiOrFallback(
-    'extract job skills',
-    async (text) => {
+  return withGemini('extract job skills', async () => {
       let lastError;
 
       for (const strict of [false, true]) {
         try {
           const responseText = await callGemini(
-            buildJobSkillsPrompt(text, strict),
+            buildJobSkillsPrompt(description, strict),
             JOB_SYSTEM_INSTRUCTION
           );
           const parsed = parseGeminiJson(responseText);
@@ -355,22 +421,17 @@ async function extractJobSkills(description) {
       }
 
       throw lastError || new Error('invalid JSON response');
-    },
-    (text) => ({ required_skills: localParser.extractJobSkills(text) }),
-    description
-  );
+  });
 }
 
 async function scoreSkillMatch(resumeSkills, jobSkills) {
-  return withGeminiOrFallback(
-    'score skill match',
-    async (resume, job) => {
+  return withGemini('score skill match', async () => {
       let lastError;
 
       for (const strict of [false, true]) {
         try {
           const responseText = await callGemini(
-            buildMatchPrompt(resume, job, strict),
+            buildMatchPrompt(resumeSkills, jobSkills, strict),
             MATCH_SYSTEM_INSTRUCTION
           );
           const parsed = parseGeminiJson(responseText);
@@ -403,11 +464,7 @@ async function scoreSkillMatch(resumeSkills, jobSkills) {
       }
 
       throw lastError || new Error('invalid JSON response');
-    },
-    localParser.scoreSkillMatch,
-    resumeSkills,
-    jobSkills
-  );
+  });
 }
 
 function normalizeStringArray(value) {
@@ -415,25 +472,211 @@ function normalizeStringArray(value) {
   return value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
 }
 
-function parseFullAnalyzeResult(parsed) {
+function toContentBlock(parsed) {
+  return {
+    education: sanitizeEducation(parsed.education),
+    summary: sanitizeSummary(parsed.summary),
+    improvements: normalizeStringArray(parsed.improvements),
+    feedback: typeof parsed.feedback === 'string' ? parsed.feedback.trim() : '',
+    roadmap: normalizeRoadmap(parsed.roadmap),
+  };
+}
+
+function parseSingleLangAnalyzeResult(parsed) {
   if (typeof parsed.match_score !== 'number' || Number.isNaN(parsed.match_score)) {
     throw new SyntaxError('Missing or invalid "match_score" number');
   }
 
   const match_score = Math.min(100, Math.max(0, parsed.match_score));
-  const skills = normalizeStringArray(parsed.skills);
 
   return {
-    skills,
+    skills: normalizeStringArray(parsed.skills),
     years_experience: typeof parsed.years_experience === 'number' ? parsed.years_experience : 0,
-    education: typeof parsed.education === 'string' ? parsed.education : '',
-    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    education: sanitizeEducation(parsed.education),
+    summary: sanitizeSummary(parsed.summary),
     match_score,
     matched_skills: normalizeStringArray(parsed.matched_skills),
     missing_skills: normalizeStringArray(parsed.missing_skills),
     improvements: normalizeStringArray(parsed.improvements),
     feedback: typeof parsed.feedback === 'string' ? parsed.feedback.trim() : '',
+    roadmap: normalizeRoadmap(parsed.roadmap),
   };
+}
+
+async function runAnalyzeForLanguage(resumeText, jobTitle, jobDescription, language) {
+  const analyzeOptions = {
+    jsonMode: true,
+    maxOutputTokens: ANALYZE_MAX_OUTPUT_TOKENS,
+    schema: SINGLE_LANG_ANALYZE_SCHEMA,
+  };
+
+  let lastError;
+
+  for (const model of config.geminiModels) {
+    for (const strict of [false, true]) {
+      try {
+        const responseText = await callGeminiOnceWithRetry(
+          model,
+          buildAnalyzePrompt(resumeText, jobTitle, jobDescription, strict, language),
+          getAnalyzeSystemInstruction(language),
+          analyzeOptions
+        );
+        const parsed = parseSingleLangAnalyzeResult(parseGeminiJson(responseText));
+        console.log(`Gemini analyze [${language}] succeeded with ${model}`);
+        return parsed;
+      } catch (err) {
+        lastError = err;
+        if (err.isQuotaError) break;
+        if (!strict) continue;
+        console.warn(
+          `Analyze [${language}] failed [${model}]: ${err.message.slice(0, 120)}`
+        );
+      }
+    }
+  }
+
+  throw lastError || new Error(`All Gemini models failed for analyze (${language})`);
+}
+
+function mergeBilingualAnalyze(en, my, language = 'en') {
+  const content_i18n = normalizeContentI18n({
+    en: toContentBlock(en),
+    my: toContentBlock(my),
+  });
+  const primary = language === 'my' ? content_i18n.my : content_i18n.en;
+
+  return {
+    parsed_skills: en.skills,
+    parsed_experience: {
+      years_experience: en.years_experience,
+      education: primary.education || en.education,
+      summary: primary.summary || en.summary,
+    },
+    match_score: en.match_score,
+    matched_skills: en.matched_skills,
+    missing_skills: en.missing_skills,
+    content_i18n,
+    improvements: primary.improvements,
+    feedback: primary.feedback,
+    roadmap: primary.roadmap,
+    content_i18n_pending: false,
+  };
+}
+
+function mergePrimaryAnalyze(primary, primaryLang) {
+  const block = toContentBlock(primary);
+  const content_i18n = normalizeContentI18n({
+    en: primaryLang === 'en' ? block : emptyContentBlock(),
+    my: primaryLang === 'my' ? block : emptyContentBlock(),
+  });
+  const active = primaryLang === 'my' ? content_i18n.my : content_i18n.en;
+
+  return {
+    parsed_skills: primary.skills,
+    parsed_experience: {
+      years_experience: primary.years_experience,
+      education: active.education || primary.education,
+      summary: active.summary || primary.summary,
+    },
+    match_score: primary.match_score,
+    matched_skills: primary.matched_skills,
+    missing_skills: primary.missing_skills,
+    content_i18n,
+    improvements: active.improvements,
+    feedback: active.feedback,
+    roadmap: active.roadmap,
+    content_i18n_pending: true,
+    primaryLang,
+    primaryAnalyze: primary,
+  };
+}
+
+function getTranslateSystemInstruction(targetLanguage) {
+  if (targetLanguage === 'my') {
+    return 'You translate career coaching text into natural Burmese (Myanmar Unicode). Keep technical skill names in English. Return ONLY valid JSON.';
+  }
+
+  return 'You translate career coaching text into clear English. Return ONLY valid JSON.';
+}
+
+function buildTranslatePrompt(sourceBlock, targetLanguage) {
+  const target =
+    targetLanguage === 'my'
+      ? 'natural Burmese (Myanmar Unicode, conversational — not romanized)'
+      : 'English';
+
+  return `Translate the following career analysis content into ${target}. Preserve meaning. Keep skill names like React and Python in English.
+
+Source JSON:
+${JSON.stringify(sourceBlock)}`;
+}
+
+async function translateAnalyzeBlock(sourceBlock, targetLanguage) {
+  const translateOptions = {
+    jsonMode: true,
+    maxOutputTokens: TRANSLATE_MAX_OUTPUT_TOKENS,
+    schema: CONTENT_BLOCK_SCHEMA,
+  };
+
+  let lastError;
+
+  for (const model of config.geminiModels) {
+    for (const strict of [false, true]) {
+      try {
+        const responseText = await callGeminiOnceWithRetry(
+          model,
+          buildTranslatePrompt(sourceBlock, targetLanguage) +
+            (strict
+              ? '\n\nIMPORTANT: Respond with raw JSON only — no markdown, no fences.'
+              : ''),
+          getTranslateSystemInstruction(targetLanguage),
+          translateOptions
+        );
+        const parsed = normalizeContentBlock(parseGeminiJson(responseText));
+        console.log(`Gemini translate [${targetLanguage}] succeeded with ${model}`);
+        return parsed;
+      } catch (err) {
+        lastError = err;
+        if (err.isQuotaError) break;
+        if (!strict) continue;
+        console.warn(
+          `Translate [${targetLanguage}] failed [${model}]: ${err.message.slice(0, 120)}`
+        );
+      }
+    }
+  }
+
+  throw lastError || new Error(`All Gemini models failed for translate (${targetLanguage})`);
+}
+
+async function enrichSecondaryLanguage(
+  resumeText,
+  jobTitle,
+  jobDescription,
+  primaryLang,
+  primaryAnalyze
+) {
+  const secondaryLang = primaryLang === 'my' ? 'en' : 'my';
+  const sourceBlock = toContentBlock(primaryAnalyze);
+
+  try {
+    return {
+      lang: secondaryLang,
+      block: await translateAnalyzeBlock(sourceBlock, secondaryLang),
+    };
+  } catch (translateErr) {
+    console.warn(
+      `Translate to ${secondaryLang} failed, running full analyze:`,
+      translateErr.message.slice(0, 120)
+    );
+    const full = await runAnalyzeForLanguage(
+      resumeText,
+      jobTitle,
+      jobDescription,
+      secondaryLang
+    );
+    return { lang: secondaryLang, block: toContentBlock(full) };
+  }
 }
 
 function parseAnalyzeResult(parsed) {
@@ -453,75 +696,18 @@ function parseAnalyzeResult(parsed) {
 }
 
 async function analyzeFull(resumeText, jobTitle, jobDescription, language = 'en') {
-  return withGeminiOrFallback(
-    'analyze resume',
-    async () => {
-      let lastError;
-      const analyzeOptions = {
-        jsonMode: true,
-        maxOutputTokens: 4096,
-        schema: ANALYZE_RESPONSE_SCHEMA,
-      };
-
-      for (const model of config.geminiModels) {
-        for (const strict of [false, true]) {
-          try {
-            const responseText = await callGeminiOnce(
-              model,
-              buildAnalyzePrompt(resumeText, jobTitle, jobDescription, strict, language),
-              getAnalyzeSystemInstruction(language),
-              analyzeOptions
-            );
-            const parsed = parseFullAnalyzeResult(parseGeminiJson(responseText));
-            console.log(`Gemini analyze succeeded with ${model}`);
-            return {
-              parsed_skills: parsed.skills,
-              parsed_experience: {
-                years_experience: parsed.years_experience,
-                education: parsed.education,
-                summary: parsed.summary,
-              },
-              match_score: parsed.match_score,
-              matched_skills: parsed.matched_skills,
-              missing_skills: parsed.missing_skills,
-              improvements: parsed.improvements,
-              feedback: parsed.feedback,
-            };
-          } catch (err) {
-            lastError = err;
-            console.warn(`Analyze attempt failed [${model}]: ${err.message.slice(0, 160)}`);
-          }
-        }
-      }
-
-      throw lastError || new Error('All Gemini models failed for analyze');
-    },
-    (text, title, description, lang = 'en') => {
-      const parsed = localParser.parseResumeText(text);
-      const parsedExperience = {
-        years_experience: parsed.years_experience,
-        education: parsed.education,
-        summary: parsed.summary,
-      };
-      const analysis = localParser.analyzeResumeMatch(
-        text,
-        parsedExperience,
-        parsed.skills,
-        title,
-        description,
-        lang
-      );
-      return {
-        parsed_skills: parsed.skills,
-        parsed_experience: parsedExperience,
-        ...analysis,
-      };
-    },
-    resumeText,
-    jobTitle,
-    jobDescription,
-    language
-  );
+  return withGemini('analyze resume', async () => {
+    const primaryLang = language === 'my' ? 'my' : 'en';
+    const started = Date.now();
+    const primary = await runAnalyzeForLanguage(
+      resumeText,
+      jobTitle,
+      jobDescription,
+      primaryLang
+    );
+    console.log(`Gemini primary analyze [${primaryLang}] finished in ${Date.now() - started}ms`);
+    return mergePrimaryAnalyze(primary, primaryLang);
+  });
 }
 
 async function analyzeResumeMatch(
@@ -534,9 +720,7 @@ async function analyzeResumeMatch(
   const experience = parsedExperience ?? {};
   const skills = resumeSkills ?? [];
 
-  return withGeminiOrFallback(
-    'analyze resume match',
-    async () => {
+  return withGemini('analyze resume match', async () => {
       let lastError;
 
       for (const strict of [false, true]) {
@@ -559,14 +743,7 @@ async function analyzeResumeMatch(
       }
 
       throw lastError || new Error('invalid JSON response');
-    },
-    localParser.analyzeResumeMatch,
-    resumeText,
-    experience,
-    skills,
-    jobTitle,
-    jobDescription
-  );
+  });
 }
 
 module.exports = {
@@ -575,4 +752,5 @@ module.exports = {
   scoreSkillMatch,
   analyzeResumeMatch,
   analyzeFull,
+  enrichSecondaryLanguage,
 };

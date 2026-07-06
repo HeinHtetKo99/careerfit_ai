@@ -1,3 +1,5 @@
+import { forwardRef } from 'react';
+
 export function Spinner({ className = 'h-8 w-8' }) {
   return (
     <div
@@ -35,14 +37,17 @@ export function Alert({ children, variant = 'error' }) {
   );
 }
 
-export function Button({
-  children,
-  variant = 'primary',
-  size = 'md',
-  className = '',
-  type = 'button',
-  ...props
-}) {
+export const Button = forwardRef(function Button(
+  {
+    children,
+    variant = 'primary',
+    size = 'md',
+    className = '',
+    type = 'button',
+    ...props
+  },
+  ref
+) {
   const base =
     'inline-flex items-center justify-center gap-2 font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50';
   const sizes = {
@@ -54,13 +59,14 @@ export function Button({
     primary: 'btn-primary shadow-sm hover:shadow-md',
     secondary: 'btn-secondary',
     ghost: 'btn-ghost',
-    danger: 'rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm text-rose-700 hover:bg-rose-50',
+    danger: 'btn-danger shadow-sm',
     logout:
       'btn-logout rounded-lg border border-rose-200 bg-gradient-to-b from-rose-50/80 to-white px-3 py-2 text-sm text-rose-600 shadow-sm hover:border-rose-300 hover:from-rose-50 hover:to-rose-50/50 hover:text-rose-700 hover:shadow',
   };
 
   return (
     <button
+      ref={ref}
       type={type}
       className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
       {...props}
@@ -68,7 +74,7 @@ export function Button({
       {children}
     </button>
   );
-}
+});
 
 export function StepBadge({ number, active, done }) {
   return (

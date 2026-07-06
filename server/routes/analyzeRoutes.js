@@ -1,10 +1,10 @@
 const express = require('express');
 const authenticateToken = require('../middleware/authenticateToken');
-const { uploadResume: uploadResumeMiddleware } = require('../middleware/uploadResume');
+const { uploadResumeOptional } = require('../middleware/uploadResume');
 const { analyze } = require('../controllers/analyzeController');
 
 const router = express.Router();
 
-router.post('/', authenticateToken, uploadResumeMiddleware, analyze);
+router.post('/', authenticateToken, uploadResumeOptional, analyze);
 
 module.exports = router;
