@@ -30,6 +30,17 @@ const en = {
     signIn: 'Sign in',
     noAccount: "Don't have an account?",
     createOne: 'Create one',
+    orDivider: 'or',
+    tryDemo: 'Try demo account',
+    startingDemo: 'Starting demo…',
+  },
+  welcome: {
+    tryDemo: 'Try demo — no signup',
+    startingDemo: 'Starting demo…',
+    signIn: 'Sign in',
+    createAccount: 'Create account',
+    demoHint: 'Explore the full app with a shared demo account. Your analyses may be visible to other demo visitors.',
+    demoBanner: "You're using the demo account.",
   },
   auth: {
     badge: 'AI Career Coach',

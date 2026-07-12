@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { loginUser, registerUser } from '../api/auth';
+import { loginDemoUser, loginUser, registerUser } from '../api/auth';
 
 const AUTH_STORAGE_KEY = 'careerfit_auth';
 
@@ -42,6 +42,14 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  const loginDemo = useCallback(async () => {
+    const data = await loginDemoUser();
+    setToken(data.token);
+    setUser(data.user);
+    saveAuth(data.token, data.user);
+    return data;
+  }, []);
+
   const register = useCallback(async (name, email, password) => {
     const data = await registerUser({ name, email, password });
     setToken(data.token);
@@ -61,11 +69,13 @@ export function AuthProvider({ children }) {
       token,
       user,
       isAuthenticated: Boolean(token && user),
+      isDemo: Boolean(user?.isDemo || user?.email === 'demo@careerfit.ai'),
       login,
+      loginDemo,
       register,
       logout,
     }),
-    [token, user, login, register, logout]
+    [token, user, login, loginDemo, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

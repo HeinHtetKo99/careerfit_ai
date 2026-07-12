@@ -13,3 +13,9 @@ export function loginUser({ email, password }) {
     body: { email, password },
   });
 }
+
+export function loginDemoUser() {
+  return apiRequest('/auth/demo', {
+    method: 'POST',
+  });
+}

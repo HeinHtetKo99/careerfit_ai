@@ -6,11 +6,13 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import MatchResult from './pages/MatchResult';
 import Register from './pages/Register';
+import Welcome from './pages/Welcome';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Welcome />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
@@ -22,8 +24,7 @@ export default function App() {
           </Route>
         </Route>
 
-        <Route path="/" element={<Navigate to="/analyze" replace />} />
-        <Route path="*" element={<Navigate to="/analyze" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

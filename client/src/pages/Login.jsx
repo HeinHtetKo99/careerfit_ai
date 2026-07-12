@@ -8,7 +8,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { formatValidationError, validateEmail, validatePassword } from '../utils/validation';
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginDemo, isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -17,6 +17,7 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   if (isAuthenticated) {
     return <Navigate to="/analyze" replace />;
@@ -48,6 +49,21 @@ export default function Login() {
     }
   }
 
+  async function handleDemoLogin() {
+    setSubmitError('');
+    setDemoLoading(true);
+    try {
+      await loginDemo();
+      navigate('/analyze');
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : t('common.errorGeneric'));
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  const busy = loading || demoLoading;
+
   return (
     <AuthLayout title={t('login.title')} subtitle={t('login.subtitle')}>
       <form onSubmit={handleSubmit} noValidate>
@@ -69,6 +85,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             className={`input-field ${errors.email ? 'input-field-error' : ''}`}
             placeholder={t('login.emailPlaceholder')}
+            disabled={busy}
           />
           {errors.email && (
             <p className="mt-1.5 text-sm text-rose-600">{formatValidationError(errors.email, t)}</p>
@@ -87,6 +104,7 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             className={`input-field ${errors.password ? 'input-field-error' : ''}`}
             placeholder="••••••••"
+            disabled={busy}
           />
           {errors.password && (
             <p className="mt-1.5 text-sm text-rose-600">
@@ -99,7 +117,7 @@ export default function Login() {
           type="submit"
           variant="primary"
           size="lg"
-          disabled={loading}
+          disabled={busy}
           className="w-full"
         >
           {loading ? (
@@ -109,6 +127,32 @@ export default function Login() {
             </>
           ) : (
             t('login.signIn')
+          )}
+        </Button>
+
+        <div className="my-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            {t('login.orDivider')}
+          </span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          disabled={busy}
+          className="w-full"
+          onClick={handleDemoLogin}
+        >
+          {demoLoading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+              {t('login.startingDemo')}
+            </>
+          ) : (
+            t('login.tryDemo')
           )}
         </Button>
 

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
@@ -5,6 +6,8 @@ const config = require('../config');
 
 const SALT_ROUNDS = 10;
 const TOKEN_EXPIRY = '7d';
+const DEMO_EMAIL = 'demo@careerfit.ai';
+const DEMO_NAME = 'Demo User';
 
 function createHttpError(statusCode, message) {
   const err = new Error(message);
@@ -26,6 +29,7 @@ function formatUser(row) {
     name: row.name,
     email: row.email,
     createdAt: row.created_at,
+    isDemo: row.email === DEMO_EMAIL,
   };
 }
 
@@ -105,4 +109,49 @@ const login = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login };
+const demoLogin = async (req, res, next) => {
+  try {
+    let result = await pool.query(
+      `SELECT id, name, email, password_hash, created_at
+       FROM users
+       WHERE email = $1`,
+      [DEMO_EMAIL]
+    );
+
+    let user = result.rows[0];
+
+    if (!user) {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), SALT_ROUNDS);
+      try {
+        result = await pool.query(
+          `INSERT INTO users (name, email, password_hash)
+           VALUES ($1, $2, $3)
+           RETURNING id, name, email, password_hash, created_at`,
+          [DEMO_NAME, DEMO_EMAIL, passwordHash]
+        );
+        user = result.rows[0];
+      } catch (insertErr) {
+        if (insertErr.code !== '23505') throw insertErr;
+        result = await pool.query(
+          `SELECT id, name, email, password_hash, created_at
+           FROM users
+           WHERE email = $1`,
+          [DEMO_EMAIL]
+        );
+        user = result.rows[0];
+      }
+    }
+
+    const token = signToken(user);
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: formatUser(user),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, demoLogin };

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function Logo({ to = '/analyze', size = 'md' }) {
+export default function Logo({ to = '/', size = 'md' }) {
   const { t } = useLanguage();
 
   const sizes = {

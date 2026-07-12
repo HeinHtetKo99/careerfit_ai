@@ -19,20 +19,38 @@ function getInitials(name) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, isDemo, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
   function handleLogout() {
     logout();
-    navigate('/login');
+    navigate('/');
+  }
+
+  function handleCreateAccount() {
+    logout();
+    navigate('/register');
   }
 
   return (
     <div className="app-shell relative">
+      {isDemo && (
+        <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-center text-sm text-sky-800">
+          {t('welcome.demoBanner')}{' '}
+          <button
+            type="button"
+            onClick={handleCreateAccount}
+            className="font-semibold text-sky-700 underline-offset-2 hover:underline"
+          >
+            {t('welcome.createAccount')}
+          </button>
+        </div>
+      )}
+
       <header className="header-glass">
         <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-          <Logo />
+          <Logo to="/" />
 
           <nav className="flex items-center gap-1">
             <NavLink to="/analyze" className={navLinkClass}>
