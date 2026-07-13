@@ -39,8 +39,19 @@ const en = {
     startingDemo: 'Starting demo…',
     signIn: 'Sign in',
     createAccount: 'Create account',
-    demoHint: 'Explore the full app with a shared demo account. Your analyses may be visible to other demo visitors.',
-    demoBanner: "You're using the demo account.",
+    demoHint: 'Try one free analysis — no signup needed. Create an account to save results and analyze more jobs.',
+    demoBanner: "You're on a free demo — one analysis only.",
+  },
+  demo: {
+    createAccount: 'Create free account',
+    historyLockedTitle: 'History needs an account',
+    historyLockedBody:
+      'Create a free account to save your results and view your analysis history anytime.',
+    analyzeLockedTitle: 'Demo limit reached',
+    analyzeLockedBody:
+      "You've used your free demo analysis. Create an account to analyze more jobs and keep your history.",
+    resultCtaBody:
+      'Create a free account to save this result, view history, and analyze more jobs.',
   },
   auth: {
     badge: 'AI Career Coach',

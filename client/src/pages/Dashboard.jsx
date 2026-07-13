@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { deleteAllMatches, listMatches } from '../api/matches';
 import AlertDialog from '../components/AlertDialog';
+import DemoUpgradeGate from '../components/DemoUpgradeGate';
 import { Alert, Button, Card, Spinner, StatCard } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -28,17 +29,25 @@ function truncate(text, max = 80) {
 }
 
 export default function Dashboard() {
-  const { user, token } = useAuth();
+  const { user, token, isDemo, logout } = useAuth();
   const { locale, t } = useLanguage();
+  const navigate = useNavigate();
   const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDemo);
   const [error, setError] = useState('');
   const [sortField, setSortField] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
   const [clearing, setClearing] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
+  function handleCreateAccount() {
+    logout();
+    navigate('/register');
+  }
+
   useEffect(() => {
+    if (isDemo) return undefined;
+
     let cancelled = false;
 
     async function load() {
@@ -58,7 +67,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user.id, token, t]);
+  }, [user.id, token, t, isDemo]);
 
   const stats = useMemo(() => {
     if (!matches.length) return { total: 0, avg: 0, best: 0 };
@@ -105,6 +114,17 @@ export default function Dashboard() {
     } finally {
       setClearing(false);
     }
+  }
+
+  if (isDemo) {
+    return (
+      <DemoUpgradeGate
+        title={t('demo.historyLockedTitle')}
+        description={t('demo.historyLockedBody')}
+        actionLabel={t('demo.createAccount')}
+        onCreateAccount={handleCreateAccount}
+      />
+    );
   }
 
   if (loading) {

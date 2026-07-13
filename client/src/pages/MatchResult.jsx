@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { getMatch } from '../api/matches';
 import ScoreCircle from '../components/ScoreCircle';
@@ -9,17 +9,28 @@ import { Button, Card, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { resolveMatchContent, hasContentBlock, secondaryLocaleFor } from '../utils/matchContent';
+import { markDemoAnalysisDone } from '../utils/demoLimits';
 
 export default function MatchResult() {
   const { matchId } = useParams();
   const location = useLocation();
-  const { token } = useAuth();
+  const navigate = useNavigate();
+  const { token, isDemo, logout } = useAuth();
   const { t, locale } = useLanguage();
 
   const [match, setMatch] = useState(location.state?.match ?? null);
   const [loading, setLoading] = useState(!location.state?.match);
   const [error, setError] = useState('');
   const [translationPending, setTranslationPending] = useState(false);
+
+  useEffect(() => {
+    if (isDemo) markDemoAnalysisDone();
+  }, [isDemo]);
+
+  function handleCreateAccount() {
+    logout();
+    navigate('/register');
+  }
 
   const secondaryLang = match ? secondaryLocaleFor(match.language) : 'en';
   const secondaryReady = match ? hasContentBlock(match.content_i18n?.[secondaryLang]) : true;
@@ -123,9 +134,15 @@ export default function MatchResult() {
       <div className="mx-auto max-w-lg animate-fade-up text-center">
         <Card className="p-10">
           <p className="text-slate-600">{error || t('result.notFound')}</p>
-          <Link to="/analyze" className="mt-6 inline-block">
-            <Button variant="primary">{t('result.startNew')}</Button>
-          </Link>
+          {isDemo ? (
+            <Button variant="primary" className="mt-6" onClick={handleCreateAccount}>
+              {t('demo.createAccount')}
+            </Button>
+          ) : (
+            <Link to="/analyze" className="mt-6 inline-block">
+              <Button variant="primary">{t('result.startNew')}</Button>
+            </Link>
+          )}
         </Card>
       </div>
     );
@@ -146,12 +163,14 @@ export default function MatchResult() {
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-up">
-      <Link
-        to="/analyze"
-        className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700"
-      >
-        {t('result.analyzeAnother')}
-      </Link>
+      {!isDemo && (
+        <Link
+          to="/analyze"
+          className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700"
+        >
+          {t('result.analyzeAnother')}
+        </Link>
+      )}
 
       {viewingSecondary && !secondaryReady && translationPending && (
         <div className="mb-4 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
@@ -283,12 +302,23 @@ export default function MatchResult() {
         )}
 
         <div className="flex flex-wrap gap-3 border-t border-slate-100 px-6 py-5 sm:px-8">
-          <Link to="/dashboard">
-            <Button variant="primary">{t('result.viewHistory')}</Button>
-          </Link>
-          <Link to="/analyze">
-            <Button variant="secondary">{t('result.analyzeAnotherJob')}</Button>
-          </Link>
+          {isDemo ? (
+            <div className="w-full space-y-4">
+              <p className="text-sm text-slate-600">{t('demo.resultCtaBody')}</p>
+              <Button variant="primary" onClick={handleCreateAccount}>
+                {t('demo.createAccount')}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Link to="/dashboard">
+                <Button variant="primary">{t('result.viewHistory')}</Button>
+              </Link>
+              <Link to="/analyze">
+                <Button variant="secondary">{t('result.analyzeAnotherJob')}</Button>
+              </Link>
+            </>
+          )}
         </div>
       </Card>
     </div>

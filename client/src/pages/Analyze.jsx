@@ -5,8 +5,10 @@ import { analyzeResume } from '../api/matches';
 import { getPrimaryResume } from '../api/resumes';
 import DropZone from '../components/DropZone';
 import { Alert, Button, Card, PageHeader, Spinner, StepBadge } from '../components/ui';
+import DemoUpgradeGate from '../components/DemoUpgradeGate';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { hasDemoAnalysisDone, markDemoAnalysisDone } from '../utils/demoLimits';
 
 const MIN_JOB_DESC = 50;
 
@@ -93,10 +95,11 @@ function AnalyzeOverlay({ file, jobTitle, loadingStep, loadingSteps, hint }) {
 }
 
 export default function Analyze() {
-  const { token } = useAuth();
+  const { token, isDemo, logout } = useAuth();
   const { locale, t } = useLanguage();
   const navigate = useNavigate();
   const errorRef = useRef(null);
+  const demoLimitReached = isDemo && hasDemoAnalysisDone();
 
   const loadingSteps = useMemo(
     () => [t('analyze.loadingStep1'), t('analyze.loadingStep2'), t('analyze.loadingStep3')],
@@ -218,6 +221,10 @@ export default function Analyze() {
         setSavedResume(data.match?.resume_profile ?? savedResume);
       }
 
+      if (isDemo) {
+        markDemoAnalysisDone();
+      }
+
       navigate(`/result/${data.match.id}`, {
         state: { match: data.match },
       });
@@ -226,6 +233,22 @@ export default function Analyze() {
     } finally {
       setAnalyzing(false);
     }
+  }
+
+  function handleCreateAccount() {
+    logout();
+    navigate('/register');
+  }
+
+  if (demoLimitReached) {
+    return (
+      <DemoUpgradeGate
+        title={t('demo.analyzeLockedTitle')}
+        description={t('demo.analyzeLockedBody')}
+        actionLabel={t('demo.createAccount')}
+        onCreateAccount={handleCreateAccount}
+      />
+    );
   }
 
   return (
