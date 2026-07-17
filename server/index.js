@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const config = require('./config');
@@ -24,6 +26,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(config.uploadsDir));
 
 app.use('/api', routes);
+
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
+const clientIndex = path.join(clientDist, 'index.html');
+
+if (fs.existsSync(clientIndex)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path === '/api' || req.path.startsWith('/api/')) {
+      return next();
+    }
+    return res.sendFile(clientIndex);
+  });
+}
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });

@@ -146,24 +146,28 @@ All routes are prefixed with `/api`.
 
 ## Deployment
 
-The app has two parts: a static frontend (`client/`) and a Node API (`server/`).
+### Railway deployment
 
-### Free Render deployment
+The included `railway.json` builds the React frontend and serves it from the
+Express API, so the application needs only one public service plus PostgreSQL:
 
-The included `render.yaml` creates a free static frontend, free Node API, and
-free PostgreSQL database:
-
-1. Push the repository to GitHub.
-2. In Render, choose **New → Blueprint** and connect the repository.
-3. Enter `GEMINI_API_KEY` when prompted and apply the Blueprint.
-4. Render automatically connects the frontend URL, API URL, and database.
+1. In Railway, create a project from this GitHub repository.
+2. Add a PostgreSQL service to the project.
+3. Add these variables to the application service:
+   - `DATABASE_URL=${{Postgres.DATABASE_URL}}`
+   - `JWT_SECRET` with a long random value
+   - `GEMINI_API_KEY` from Google AI Studio
+   - `GEMINI_MODEL=gemini-2.5-flash`
+   - `PERSIST_UPLOADS=false`
+4. Generate a public domain for the application service.
 5. Verify `/api/health`, registration, upload, analysis, history, and direct
    frontend routes.
 
-The free API sleeps when idle, so its first request can be slow. Render's free
-PostgreSQL databases expire after 30 days. `PERSIST_UPLOADS=false` removes each
-temporary PDF after extracting its text; saved-resume reuse still works from
-the text stored in PostgreSQL.
+Railway's trial provides a one-time $5 credit for up to 30 days. Its subsequent
+free plan provides only $1 of monthly resource credit, which might not keep both
+the app and PostgreSQL running continuously. With `PERSIST_UPLOADS=false`, each
+temporary PDF is removed after text extraction; saved-resume reuse continues
+from PostgreSQL.
 
 ## Scripts
 
@@ -174,6 +178,7 @@ the text stored in PostgreSQL.
 | `npm run dev:server` | Start API with nodemon |
 | `cd client && npm run build` | Production frontend build |
 | `cd server && npm start` | Run API in production |
+| `npm run railway:build` | Install production dependencies and build for Railway |
 
 ## License
 
