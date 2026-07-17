@@ -2,6 +2,13 @@
 
 AI-powered resume-to-job matcher. Upload a CV, paste a job description, and get an instant match score with skill gaps and actionable feedback. Supports **English** and **Myanmar (မြန်မာ)**.
 
+## Live demo
+
+**[Try CareerFit AI →](https://careerfitai-production.up.railway.app)**
+
+The app is hosted on Railway and may take a few seconds to wake up after a
+period of inactivity.
+
 ## Features
 
 - **Resume analysis** — Upload a PDF; text is extracted and parsed for skills and experience
@@ -59,8 +66,8 @@ careerfit-ai/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/careerfit-ai.git
-cd careerfit-ai
+git clone https://github.com/HeinHtetKo99/careerfit_ai.git
+cd careerfit_ai
 npm run install:all
 ```
 
@@ -147,6 +154,8 @@ All routes are prefixed with `/api`.
 ## Deployment
 
 ### Railway deployment
+
+Live application: **https://careerfitai-production.up.railway.app**
 
 The included `railway.json` builds the React frontend and serves it from the
 Express API, so the application needs only one public service plus PostgreSQL:
