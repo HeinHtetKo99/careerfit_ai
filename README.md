@@ -50,7 +50,7 @@ careerfit-ai/
 
 ## Prerequisites
 
-- **Node.js** 18+
+- **Node.js** 22
 - **PostgreSQL** 14+
 - **Google Gemini API key** — [Get one at Google AI Studio](https://aistudio.google.com/apikey)
 
@@ -66,17 +66,15 @@ npm run install:all
 
 ### 2. Set up the database
 
-Create a PostgreSQL database, then run the schema and migrations:
+Create a PostgreSQL database, then initialize it with the current schema:
 
 ```bash
-psql "$DATABASE_URL" -f server/schema.sql
-psql "$DATABASE_URL" -f server/migrations/002_analyze_flow.sql
-psql "$DATABASE_URL" -f server/migrations/003_saved_resume.sql
-psql "$DATABASE_URL" -f server/migrations/004_resume_file_name.sql
-psql "$DATABASE_URL" -f server/migrations/005_improvement_roadmap.sql
-psql "$DATABASE_URL" -f server/migrations/006_match_language.sql
-psql "$DATABASE_URL" -f server/migrations/007_content_i18n.sql
+cd server
+DATABASE_URL="$DATABASE_URL" npm run db:init
 ```
+
+The numbered migrations are only for upgrading older installations. Do not run
+them after `schema.sql`, which already contains the current schema.
 
 ### 3. Configure environment variables
 
@@ -92,7 +90,9 @@ cp server/.env.example server/.env
 | `JWT_SECRET` | Secret for signing JWT tokens (use a long random string in production) |
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `GEMINI_MODEL` | Comma-separated models to try, e.g. `gemini-2.5-flash,gemini-2.0-flash` |
-| `GEMINI_FALLBACK` | Set to `true` to use keyword matching when Gemini is unavailable |
+| `CLIENT_URL` | Allowed frontend origin; comma-separate multiple origins |
+| `PERSIST_UPLOADS` | Set to `false` on ephemeral hosts; resume text remains in PostgreSQL |
+| `UPLOADS_DIR` | PDF storage path when uploads are persisted |
 | `PORT` | API port (default `5001`) |
 
 **Client** (optional for local dev) — copy `client/.env.example` to `client/.env`:
@@ -148,15 +148,22 @@ All routes are prefixed with `/api`.
 
 The app has two parts: a static frontend (`client/`) and a Node API (`server/`).
 
-**Typical setup**
+### Free Render deployment
 
-1. **Database** — Supabase, Neon, or Railway PostgreSQL; run `schema.sql` and migrations
-2. **API** — Render, Railway, or Fly.io (`server/`, start: `npm start`)
-3. **Frontend** — Vercel, Netlify, or Cloudflare Pages (`client/`, build: `npm run build`, output: `dist`)
+The included `render.yaml` creates a free static frontend, free Node API, and
+free PostgreSQL database:
 
-Set `VITE_API_URL` to your deployed API URL when building the frontend.
+1. Push the repository to GitHub.
+2. In Render, choose **New → Blueprint** and connect the repository.
+3. Enter `GEMINI_API_KEY` when prompted and apply the Blueprint.
+4. Render automatically connects the frontend URL, API URL, and database.
+5. Verify `/api/health`, registration, upload, analysis, history, and direct
+   frontend routes.
 
-> **Note:** Uploaded PDFs are stored in `server/uploads/`. Ephemeral hosts may lose files on restart; use persistent storage or object storage for production.
+The free API sleeps when idle, so its first request can be slow. Render's free
+PostgreSQL databases expire after 30 days. `PERSIST_UPLOADS=false` removes each
+temporary PDF after extracting its text; saved-resume reuse still works from
+the text stored in PostgreSQL.
 
 ## Scripts
 

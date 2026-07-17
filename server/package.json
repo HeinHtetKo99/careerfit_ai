@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "description": "AI Resume Matcher API",
   "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "db:init": "node scripts/initDatabase.js"
   },
   "keywords": [],
   "author": "",

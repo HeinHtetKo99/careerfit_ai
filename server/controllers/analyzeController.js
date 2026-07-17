@@ -1,4 +1,5 @@
 const pool = require('../db');
+const config = require('../config');
 const { UPLOAD_FIELD } = require('../middleware/uploadResume');
 const { analyzeFull, enrichSecondaryLanguage } = require('../services/geminiService');
 const {
@@ -121,7 +122,13 @@ const analyze = async (req, res, next) => {
         return next(createHttpError(422, 'No text could be extracted from the PDF'));
       }
 
-      fileUrl = `/uploads/${req.file.filename}`;
+      fileUrl = config.persistUploads
+        ? `/uploads/${req.file.filename}`
+        : null;
+
+      if (!config.persistUploads) {
+        await removeFile(filePath);
+      }
     } else {
       resumeRow = await getPrimaryResume(req.user.id);
 

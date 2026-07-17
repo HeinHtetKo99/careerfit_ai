@@ -14,10 +14,13 @@ module.exports = {
   port: process.env.PORT || 5001,
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
+  clientUrl: process.env.CLIENT_URL,
   geminiApiKey: process.env.GEMINI_API_KEY,
   geminiModels: parseModelList(
     process.env.GEMINI_MODEL,
     'gemini-2.5-flash'
   ),
-  uploadsDir: path.join(__dirname, '..', 'uploads'),
+  persistUploads: process.env.PERSIST_UPLOADS !== 'false',
+  uploadsDir:
+    process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads'),
 };

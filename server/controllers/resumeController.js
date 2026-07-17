@@ -1,4 +1,5 @@
 const pool = require('../db');
+const config = require('../config');
 const { UPLOAD_FIELD } = require('../middleware/uploadResume');
 const { parseResumeText } = require('../services/geminiService');
 const { formatResumeProfile, upsertPrimaryResume } = require('../services/resumeService');
@@ -44,7 +45,13 @@ const uploadResume = async (req, res, next) => {
       );
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = config.persistUploads
+      ? `/uploads/${req.file.filename}`
+      : null;
+
+    if (!config.persistUploads) {
+      await removeFile(filePath);
+    }
 
     const parsed = await parseResumeText(rawText);
 
